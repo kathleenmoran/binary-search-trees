@@ -8,19 +8,7 @@ class Tree
   attr_accessor :root
 
   def initialize(elements)
-    @root = build_tree(elements.uniq.sort)
-    pretty_print
-  end
-
-  def build_tree(elements)
-    size = elements.length
-    if size.zero?
-      nil
-    elsif size == 1
-      Node.new(elements[0])
-    else
-      Node.new(elements[size / 2], build_tree(elements[0...size / 2]), build_tree(elements[size / 2 + 1..size]))
-    end
+    @root = elements.nil? ? nil : build_tree(elements.uniq.sort)
   end
 
   def pretty_print(node = @root, prefix = '', is_left = true)
@@ -42,6 +30,82 @@ class Tree
     self
   end
 
+  def level_order(node = @root)
+    return if node.nil?
+
+    queue = []
+    breadth_first_order = []
+    queue.prepend(node)
+    until queue.empty?
+      new_node = queue.pop
+      if block_given?
+        yield new_node
+      else
+        breadth_first_order << new_node.data
+      end
+      queue.prepend(new_node.left) unless new_node.no_left?
+      queue.prepend(new_node.right) unless new_node.no_right?
+    end
+    breadth_first_order unless block_given?
+  end
+
+  def inorder(node = @root, values = [], &block)
+    return unless node
+
+    inorder(node.left, values)
+    values << node
+    inorder(node.right, values)
+    yield_or_return_values(values, &block)
+  end
+
+  def preorder(node = @root, values = [], &block)
+    return unless node
+
+    values << node
+    preorder(node.left, values)
+    preorder(node.right, values)
+    yield_or_return_values(values, &block)
+  end
+
+  def postorder(node = @root, values = [], &block)
+    return unless node
+
+    postorder(node.left, values)
+    postorder(node.right, values)
+    values << node
+    yield_or_return_values(values, &block)
+  end
+
+  def yield_or_return_values(values, &block)
+    if block_given?
+      values.each(&block)
+    else
+      values.map(&:data)
+    end
+  end
+
+  def balanced?
+    (height(root.left) - height(root.right)).abs <= 1
+  end
+
+  def rebalance
+    @root = build_tree(level_order)
+    self
+  end
+
+  private
+
+  def build_tree(elements)
+    size = elements.length
+    if size.zero?
+      nil
+    elsif size == 1
+      Node.new(elements[0])
+    else
+      Node.new(elements[size / 2], build_tree(elements[0...size / 2]), build_tree(elements[size / 2 + 1..size]))
+    end
+  end
+
   def insert_left(value, node = @root)
     node.no_left? ? (node.left = Node.new(value)) : insert(value, node.left)
   end
@@ -50,20 +114,6 @@ class Tree
     node.no_right? ? (node.right = Node.new(value)) : insert(value, node.right)
   end
 
-  def delete(value)
-    relationship = find_relationship(value)
-    return self if relationship.nil?
-
-    if relationship.childless_target?
-      delete_no_children(relationship)
-    elsif relationship.one_child_target?
-      delete_one_child(relationship)
-    else
-      delete_two_children(relationship)
-    end
-    pretty_print
-    self
-  end
 
   def delete_no_children(relationship)
     if relationship.no_parent?
@@ -130,22 +180,20 @@ class Tree
     find_rightmost_relationship(node.left)
   end
 
-  def level_order(node = @root)
-    return if node.nil?
+  def height(node = @root)
+    return 0 unless node
 
-    queue = []
-    breadth_first_order = []
-    queue.prepend(node)
-    until queue.empty?
-      new_node = queue.pop
-      if block_given?
-        yield new_node
-      else
-        breadth_first_order << new_node.data
-      end
-      queue.prepend(new_node.left) unless new_node.no_left?
-      queue.prepend(new_node.right) unless new_node.no_right?
-    end
-    breadth_first_order unless block_given?
+    left_max_height = height(node.left)
+    right_max_height = height(node.right)
+    [left_max_height, right_max_height].max + 1
+  end
+
+  def depth(node, root = @root, acc = 0)
+    return unless root
+    return acc if node.data == root.data
+
+    left_search = depth(node, root.left, acc + 1) if node.data < root.data
+    right_search = depth(node, root.right, acc + 1) if node.data > root.data
+    left_search.nil? ? right_search : left_search
   end
 end
